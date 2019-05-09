@@ -708,6 +708,14 @@ class RstTranslator(TextTranslator):
         if 'refuri' not in node:
             self.add_text('`%s`_' % node['name'])
             raise nodes.SkipNode
+        elif not isinstance(node.parent, nodes.TextElement):
+            # We have an image
+            # https://github.com/sphinx-doc/sphinx/blob/master/sphinx/writers/html.py#L268
+            assert len(node) == 1 and isinstance(node[0], nodes.image)
+            print(type(node))
+            print(node)
+            print(node.parent)
+            assert(0)
         elif 'internal' not in node:
             self.add_text('`%s <%s>`_' % (node['name'], node['refuri']))
             raise nodes.SkipNode
