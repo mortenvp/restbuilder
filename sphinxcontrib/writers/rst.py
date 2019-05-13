@@ -123,8 +123,6 @@ class RstTranslator(TextTranslator):
                                  for line in lines)
         # TODO: add header/footer?
 
-        print(self.states)
-
     def visit_highlightlang(self, node):
         raise nodes.SkipNode
 
@@ -414,14 +412,32 @@ class RstTranslator(TextTranslator):
             else:
                 cells = []
                 for i, cell in enumerate(line):
-                    par = self.wrap(cell, width=colwidths[i])
+
+                    # If the cell contains markup like references
+                    # it cannot be wrapped, we do a simple check for
+                    # backtick
+                    if "`" in cell:
+                        # Remove any trailing newlines since they will mess
+                        # up the table output
+                        par = [cell.strip()]
+                    else:
+                        par = self.wrap(cell, width=colwidths[i])
+
                     if par:
                         maxwidth = max(list(map(len, par)))
                     else:
                         maxwidth = 0
                     realwidths[i] = max(realwidths[i], maxwidth)
-                    cells.append(par)
+
+                    if par:
+                        cells.append(par)
+                    else:
+                        # Make sure that rows with empty cells also get
+                        # printed
+                        cells.append([""])
                 fmted_rows.append(cells)
+
+        print(fmted_rows)
 
         def writesep(char='-'):
             out = ['+']
@@ -449,6 +465,7 @@ class RstTranslator(TextTranslator):
                 writesep('-')
             writerow(row)
         writesep('-')
+
         self.table = None
         self.end_state(wrap=False)
 
@@ -461,15 +478,19 @@ class RstTranslator(TextTranslator):
 
     def visit_image(self, node):
         self.new_state(indent=0)
-        print(node)
-        print(self.states)
-        print("Indent: {}".format( self.indent))
+
         if 'uri' in node:
             self.add_text(_('.. image:: %s') % node['uri'])
         elif 'alt' in node.attributes:
             self.add_text(_('[image: %s]') % node['alt'])
         else:
             self.add_text(_('[image]'))
+
+        if isinstance(node.parent, nodes.reference):
+            # The parent node is a reference so we should add the target
+            indent = "\n" + " " * self.indent
+            self.add_text(indent + ":target: {}".format(node.parent['refuri']))
+
         self.end_state(wrap=False)
         raise nodes.SkipNode
 
@@ -715,17 +736,24 @@ class RstTranslator(TextTranslator):
         Finally, all other links are also converted to an inline link
         format.
         """
-        if 'refuri' not in node:
+        if 'refid' in node and 'internal' in node:
+
+            # Here we use the approach shown here:
+            # https://stackoverflow.com/a/34991777/1717320
+            self.add_text('`{} <{}_>`_'.format(node.astext(), node['refid']))
+            print(node)
+            raise nodes.SkipNode
+
+        elif 'refuri' not in node:
             self.add_text('`%s`_' % node['name'])
             raise nodes.SkipNode
         elif not isinstance(node.parent, nodes.TextElement):
             # We have an image
             # https://github.com/sphinx-doc/sphinx/blob/master/sphinx/writers/html.py#L268
-            assert len(node) == 1 and isinstance(node[0], nodes.image)
-            print(type(node))
-            print(node)
-            print(node.parent)
-            #assert(0)
+            #
+            # In this case we do not raise the nodes.SkipNode exception to
+            # get to the visit_image handler.
+            pass
         elif 'internal' not in node:
             if 'name' in node:
                 self.add_text('`%s <%s>`_' % (node['name'], node['refuri']))
