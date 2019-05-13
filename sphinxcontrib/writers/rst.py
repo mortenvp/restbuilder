@@ -123,6 +123,8 @@ class RstTranslator(TextTranslator):
                                  for line in lines)
         # TODO: add header/footer?
 
+        print(self.states)
+
     def visit_highlightlang(self, node):
         raise nodes.SkipNode
 
@@ -458,9 +460,17 @@ class RstTranslator(TextTranslator):
         raise nodes.SkipNode
 
     def visit_image(self, node):
-        if 'alt' in node.attributes:
+        self.new_state(indent=0)
+        print(node)
+        print(self.states)
+        print("Indent: {}".format( self.indent))
+        if 'uri' in node:
+            self.add_text(_('.. image:: %s') % node['uri'])
+        elif 'alt' in node.attributes:
             self.add_text(_('[image: %s]') % node['alt'])
-        self.add_text(_('[image]'))
+        else:
+            self.add_text(_('[image]'))
+        self.end_state(wrap=False)
         raise nodes.SkipNode
 
     def visit_transition(self, node):
@@ -715,9 +725,12 @@ class RstTranslator(TextTranslator):
             print(type(node))
             print(node)
             print(node.parent)
-            assert(0)
+            #assert(0)
         elif 'internal' not in node:
-            self.add_text('`%s <%s>`_' % (node['name'], node['refuri']))
+            if 'name' in node:
+                self.add_text('`%s <%s>`_' % (node['name'], node['refuri']))
+            else:
+                self.add_text(node['refuri'])
             raise nodes.SkipNode
         elif 'reftitle' in node:
             # Include node as text, rather than with markup.
